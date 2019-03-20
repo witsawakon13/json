@@ -107,6 +107,10 @@ class output_adapter
     output_adapter(StringType& s)
         : oa(std::make_shared<output_string_adapter<CharType, StringType>>(s)) {}
 
+    /// extension point for user-defined output adapters
+    explicit output_adapter(output_adapter_t<CharType> oa_)
+        : oa(oa_) {}
+
     operator output_adapter_t<CharType>()
     {
         return oa;

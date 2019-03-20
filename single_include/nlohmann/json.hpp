@@ -2661,6 +2661,10 @@ class input_adapter
     input_adapter(const ContiguousContainer& c)
         : input_adapter(std::begin(c), std::end(c)) {}
 
+    /// extension point for user-defined input adapters
+    explicit input_adapter(input_adapter_t ia_)
+        : ia(ia_) {}
+
     operator input_adapter_t()
     {
         return ia;
@@ -9547,6 +9551,10 @@ class output_adapter
 
     output_adapter(StringType& s)
         : oa(std::make_shared<output_string_adapter<CharType, StringType>>(s)) {}
+
+    /// extension point for user-defined output adapters
+    explicit output_adapter(output_adapter_t<CharType> oa_)
+        : oa(oa_) {}
 
     operator output_adapter_t<CharType>()
     {
@@ -19226,16 +19234,16 @@ class basic_json
 
     @since version 2.0.9
     */
-    static std::vector<uint8_t> to_cbor(const basic_json& j)
+    static std::vector<std::uint8_t> to_cbor(const basic_json& j)
     {
-        std::vector<uint8_t> result;
+        std::vector<std::uint8_t> result;
         to_cbor(j, result);
         return result;
     }
 
-    static void to_cbor(const basic_json& j, detail::output_adapter<uint8_t> o)
+    static void to_cbor(const basic_json& j, detail::output_adapter<std::uint8_t> o)
     {
-        binary_writer<uint8_t>(o).write_cbor(j);
+        binary_writer<std::uint8_t>(o).write_cbor(j);
     }
 
     static void to_cbor(const basic_json& j, detail::output_adapter<char> o)
@@ -19322,16 +19330,16 @@ class basic_json
 
     @since version 2.0.9
     */
-    static std::vector<uint8_t> to_msgpack(const basic_json& j)
+    static std::vector<std::uint8_t> to_msgpack(const basic_json& j)
     {
-        std::vector<uint8_t> result;
+        std::vector<std::uint8_t> result;
         to_msgpack(j, result);
         return result;
     }
 
-    static void to_msgpack(const basic_json& j, detail::output_adapter<uint8_t> o)
+    static void to_msgpack(const basic_json& j, detail::output_adapter<std::uint8_t> o)
     {
-        binary_writer<uint8_t>(o).write_msgpack(j);
+        binary_writer<std::uint8_t>(o).write_msgpack(j);
     }
 
     static void to_msgpack(const basic_json& j, detail::output_adapter<char> o)
@@ -19419,19 +19427,19 @@ class basic_json
 
     @since version 3.1.0
     */
-    static std::vector<uint8_t> to_ubjson(const basic_json& j,
-                                          const bool use_size = false,
-                                          const bool use_type = false)
+    static std::vector<std::uint8_t> to_ubjson(const basic_json& j,
+            const bool use_size = false,
+            const bool use_type = false)
     {
-        std::vector<uint8_t> result;
+        std::vector<std::uint8_t> result;
         to_ubjson(j, result, use_size, use_type);
         return result;
     }
 
-    static void to_ubjson(const basic_json& j, detail::output_adapter<uint8_t> o,
+    static void to_ubjson(const basic_json& j, detail::output_adapter<std::uint8_t> o,
                           const bool use_size = false, const bool use_type = false)
     {
-        binary_writer<uint8_t>(o).write_ubjson(j, use_size, use_type);
+        binary_writer<std::uint8_t>(o).write_ubjson(j, use_size, use_type);
     }
 
     static void to_ubjson(const basic_json& j, detail::output_adapter<char> o,
@@ -19496,9 +19504,9 @@ class basic_json
     @sa @ref to_cbor(const basic_json&) for the related CBOR format
     @sa @ref to_msgpack(const basic_json&) for the related MessagePack format
     */
-    static std::vector<uint8_t> to_bson(const basic_json& j)
+    static std::vector<std::uint8_t> to_bson(const basic_json& j)
     {
-        std::vector<uint8_t> result;
+        std::vector<std::uint8_t> result;
         to_bson(j, result);
         return result;
     }
@@ -19511,13 +19519,13 @@ class basic_json
     @pre The input `j` shall be an object: `j.is_object() == true`
     @sa @ref to_bson(const basic_json&)
     */
-    static void to_bson(const basic_json& j, detail::output_adapter<uint8_t> o)
+    static void to_bson(const basic_json& j, detail::output_adapter<std::uint8_t> o)
     {
-        binary_writer<uint8_t>(o).write_bson(j);
+        binary_writer<std::uint8_t>(o).write_bson(j);
     }
 
     /*!
-    @copydoc to_bson(const basic_json&, detail::output_adapter<uint8_t>)
+    @copydoc to_bson(const basic_json&, detail::output_adapter<std::uint8_t>)
     */
     static void to_bson(const basic_json& j, detail::output_adapter<char> o)
     {

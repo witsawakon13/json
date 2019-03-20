@@ -426,6 +426,10 @@ class input_adapter
     input_adapter(const ContiguousContainer& c)
         : input_adapter(std::begin(c), std::end(c)) {}
 
+    /// extension point for user-defined input adapters
+    explicit input_adapter(input_adapter_t ia_)
+        : ia(ia_) {}
+
     operator input_adapter_t()
     {
         return ia;
