@@ -14,10 +14,22 @@ namespace nlohmann
 namespace detail
 {
 /// abstract output adapter interface
-template<typename CharType> struct output_adapter_protocol
+template<typename CharType>
+struct output_adapter_protocol
 {
+    /*!
+    @brief write a character to the output
+    @param[in] c  character to write
+    */
     virtual void write_character(CharType c) = 0;
+
+    /*!
+    @brief write some characters to the output
+    @param[in] s  pointer to a continouus chunk of memory
+    @param[in] length  number of bytes to write
+    */
     virtual void write_characters(const CharType* s, std::size_t length) = 0;
+
     virtual ~output_adapter_protocol() = default;
 };
 
@@ -94,6 +106,11 @@ class output_string_adapter : public output_adapter_protocol<CharType>
     StringType& str;
 };
 
+/*!
+@brief Convenience wrapper around @ref output_adapter_protocol.
+@tparam CharType  type of the characters (e.h., `char` or `std::uint8_t`)
+@tparam StringType  string type derived from @a CharType
+*/
 template<typename CharType, typename StringType = std::basic_string<CharType>>
 class output_adapter
 {

@@ -2275,7 +2275,10 @@ could be any arbitrary value which is not a valid char value.
 */
 struct input_adapter_protocol
 {
-    /// get a character [0,255] or std::char_traits<char>::eof().
+    /*!
+    @brief read and return one byte from the input
+    @return character (0..255) or std::char_traits<char>::eof()
+    */
     virtual std::char_traits<char>::int_type get_character() = 0;
     virtual ~input_adapter_protocol() = default;
 };
@@ -2284,8 +2287,8 @@ struct input_adapter_protocol
 using input_adapter_t = std::shared_ptr<input_adapter_protocol>;
 
 /*!
-Input adapter for stdio file access. This adapter read only 1 byte and do not use any
- buffer. This adapter is a very low level adapter.
+Input adapter for stdio file access. This adapter read only 1 byte and do not
+use an buffer. This adapter is a very low level adapter.
 */
 class file_input_adapter : public input_adapter_protocol
 {
@@ -2564,12 +2567,18 @@ class wide_string_input_adapter : public input_adapter_protocol
     std::size_t utf8_bytes_filled = 0;
 };
 
+/*!
+@brief Convenience wrapper around @ref input_adapter_protocol.
+*/
 class input_adapter
 {
   public:
     // native support
+
+    /// input adapter for C FILE p
     input_adapter(std::FILE* file)
         : ia(std::make_shared<file_input_adapter>(file)) {}
+
     /// input adapter for input stream
     input_adapter(std::istream& i)
         : ia(std::make_shared<input_stream_adapter>(i)) {}
@@ -2578,16 +2587,19 @@ class input_adapter
     input_adapter(std::istream&& i)
         : ia(std::make_shared<input_stream_adapter>(i)) {}
 
+    /// input adapter for wide string
     input_adapter(const std::wstring& ws)
         : ia(std::make_shared<wide_string_input_adapter<std::wstring>>(ws)) {}
 
+    /// input adapter for UTF-16 string
     input_adapter(const std::u16string& ws)
         : ia(std::make_shared<wide_string_input_adapter<std::u16string>>(ws)) {}
 
+    /// input adapter for UTF-32 string
     input_adapter(const std::u32string& ws)
         : ia(std::make_shared<wide_string_input_adapter<std::u32string>>(ws)) {}
 
-    /// input adapter for buffer
+    /// input adapter for character buffer
     template<typename CharT,
              typename std::enable_if<
                  std::is_pointer<CharT>::value and
@@ -2648,7 +2660,7 @@ class input_adapter
         }
     }
 
-    /// input adapter for array
+    /// input adapter for character array
     template<class T, std::size_t N>
     input_adapter(T (&array)[N])
         : input_adapter(std::begin(array), std::end(array)) {}
@@ -2665,6 +2677,7 @@ class input_adapter
     explicit input_adapter(input_adapter_t ia_)
         : ia(ia_) {}
 
+    /// implicit conversion to simplify invokations of @ref nlohmann::json::parse
     operator input_adapter_t()
     {
         return ia;
@@ -9459,10 +9472,22 @@ namespace nlohmann
 namespace detail
 {
 /// abstract output adapter interface
-template<typename CharType> struct output_adapter_protocol
+template<typename CharType>
+struct output_adapter_protocol
 {
+    /*!
+    @brief write a character to the output
+    @param[in] c  character to write
+    */
     virtual void write_character(CharType c) = 0;
+
+    /*!
+    @brief write some characters to the output
+    @param[in] s  pointer to a continouus chunk of memory
+    @param[in] length  number of bytes to write
+    */
     virtual void write_characters(const CharType* s, std::size_t length) = 0;
+
     virtual ~output_adapter_protocol() = default;
 };
 
@@ -9539,6 +9564,11 @@ class output_string_adapter : public output_adapter_protocol<CharType>
     StringType& str;
 };
 
+/*!
+@brief Convenience wrapper around @ref output_adapter_protocol.
+@tparam CharType  type of the characters (e.h., `char` or `std::uint8_t`)
+@tparam StringType  string type derived from @a CharType
+*/
 template<typename CharType, typename StringType = std::basic_string<CharType>>
 class output_adapter
 {
