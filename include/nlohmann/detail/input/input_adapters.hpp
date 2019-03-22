@@ -30,21 +30,26 @@ enum class input_format_t { json, cbor, msgpack, ubjson, bson };
 /*!
 @brief abstract input adapter interface
 
-Produces a stream of std::char_traits<char>::int_type characters from a
-std::istream, a buffer, or some other input type. Accepts the return of
-exactly one non-EOF character for future input. The int_type characters
-returned consist of all valid char values as positive values (typically
-unsigned char), plus an EOF value outside that range, specified by the value
-of the function std::char_traits<char>::eof(). This value is typically -1, but
-could be any arbitrary value which is not a valid char value.
+Interface for input adapters. Produces a stream of
+`std::char_traits<char>::int_type` characters from a `std::istream`, a buffer,
+or some other input type. Accepts the return of exactly one non-EOF character
+for future input.
 */
 struct input_adapter_protocol
 {
     /*!
     @brief read and return one byte from the input
-    @return character (0..255) or std::char_traits<char>::eof()
+
+    The int_type characters returned consist of all valid char values as
+    positive values (typically `unsigned char`), plus an EOF value outside
+    that range, specified by the value of the function
+    `std::char_traits<char>::eof()`. This value is typically -1, but could be
+    any arbitrary value which is not a valid char value.
+
+    @return character (0..255) or `std::char_traits<char>::eof()`
     */
     virtual std::char_traits<char>::int_type get_character() = 0;
+
     virtual ~input_adapter_protocol() = default;
 };
 
@@ -332,37 +337,141 @@ class wide_string_input_adapter : public input_adapter_protocol
     std::size_t utf8_bytes_filled = 0;
 };
 
+/// input adapter for C FILE p
+input_adapter_t make_input_adapter(std::FILE* file)
+{
+    return std::make_shared<file_input_adapter>(file);
+}
+
+/// input adapter for input stream
+input_adapter_t make_input_adapter(std::istream& i)
+{
+    return std::make_shared<input_stream_adapter>(i);
+}
+
+/// input adapter for input stream
+input_adapter_t make_input_adapter(std::istream&& i)
+{
+    return std::make_shared<input_stream_adapter>(i);
+}
+
+/// input adapter for wide string
+input_adapter_t make_input_adapter(const std::wstring& ws)
+{
+    return std::make_shared<wide_string_input_adapter<std::wstring>>(ws);
+}
+
+/// input adapter for UTF-16 string
+input_adapter_t make_input_adapter(const std::u16string& ws)
+{
+    return std::make_shared<wide_string_input_adapter<std::u16string>>(ws);
+}
+
+/// input adapter for UTF-32 string
+input_adapter_t make_input_adapter(const std::u32string& ws)
+{
+    return std::make_shared<wide_string_input_adapter<std::u32string>>(ws);
+}
+
+/// input adapter for character buffer
+template<typename CharT,
+         typename std::enable_if<
+             std::is_pointer<CharT>::value and
+             std::is_integral<typename std::remove_pointer<CharT>::type>::value and
+             sizeof(typename std::remove_pointer<CharT>::type) == 1,
+             int>::type = 0>
+input_adapter_t make_input_adapter(CharT b, std::size_t l)
+{
+    return std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(b), l);
+}
+
+/// input adapter for string literal
+template<typename CharT,
+         typename std::enable_if<
+             std::is_pointer<CharT>::value and
+             std::is_integral<typename std::remove_pointer<CharT>::type>::value and
+             sizeof(typename std::remove_pointer<CharT>::type) == 1,
+             int>::type = 0>
+input_adapter_t make_input_adapter(CharT b)
+{
+    return  make_input_adapter(reinterpret_cast<const char*>(b),
+                               std::strlen(reinterpret_cast<const char*>(b)));
+}
+
+/// input adapter for iterator range with contiguous storage
+template<class IteratorType,
+         typename std::enable_if<
+             std::is_same<typename iterator_traits<IteratorType>::iterator_category, std::random_access_iterator_tag>::value,
+             int>::type = 0>
+input_adapter_t make_input_adapter(IteratorType first, IteratorType last)
+{
+#ifndef NDEBUG
+    // assertion to check that the iterator range is indeed contiguous,
+    // see http://stackoverflow.com/a/35008842/266378 for more discussion
+    const auto is_contiguous = std::accumulate(
+                                   first, last, std::pair<bool, int>(true, 0),
+                                   [&first](std::pair<bool, int> res, decltype(*first) val)
+    {
+        res.first &= (val == *(std::next(std::addressof(*first), res.second++)));
+        return res;
+    }).first;
+    assert(is_contiguous);
+#endif
+
+    // assertion to check that each element is 1 byte long
+    static_assert(
+        sizeof(typename iterator_traits<IteratorType>::value_type) == 1,
+        "each element in the iterator range must have the size of 1 byte");
+
+    const auto len = static_cast<size_t>(std::distance(first, last));
+    if (JSON_LIKELY(len > 0))
+    {
+        // there is at least one element: use the address of first
+        return std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(&(*first)), len);
+    }
+    else
+    {
+        // the address of first cannot be used: use nullptr
+        return std::make_shared<input_buffer_adapter>(nullptr, len);
+    }
+}
+
+/// input adapter for character array
+template<class T, std::size_t N>
+input_adapter_t make_input_adapter(T (&array)[N])
+{
+    return make_input_adapter(std::begin(array), std::end(array));
+}
+
+/// input adapter for contiguous container
+template<class ContiguousContainer, typename
+         std::enable_if<not std::is_pointer<ContiguousContainer>::value and
+                        std::is_base_of<std::random_access_iterator_tag, typename iterator_traits<decltype(std::begin(std::declval<ContiguousContainer const>()))>::iterator_category>::value,
+                        int>::type = 0>
+input_adapter_t make_input_adapter(const ContiguousContainer& c)
+{
+    return make_input_adapter(std::begin(c), std::end(c));
+}
+
+/// extension point for user-defined input adapters
+input_adapter_t make_input_adapter(input_adapter_t ia)
+{
+    return ia;
+}
+
 /*!
 @brief Convenience wrapper around @ref input_adapter_protocol.
 */
 class input_adapter
 {
   public:
-    // native support
+    template<typename T>
+    input_adapter(T&& t)
+        : ia(make_input_adapter(std::forward<T>(t))) {}
 
-    /// input adapter for C FILE p
-    input_adapter(std::FILE* file)
-        : ia(std::make_shared<file_input_adapter>(file)) {}
-
-    /// input adapter for input stream
-    input_adapter(std::istream& i)
-        : ia(std::make_shared<input_stream_adapter>(i)) {}
-
-    /// input adapter for input stream
-    input_adapter(std::istream&& i)
-        : ia(std::make_shared<input_stream_adapter>(i)) {}
-
-    /// input adapter for wide string
-    input_adapter(const std::wstring& ws)
-        : ia(std::make_shared<wide_string_input_adapter<std::wstring>>(ws)) {}
-
-    /// input adapter for UTF-16 string
-    input_adapter(const std::u16string& ws)
-        : ia(std::make_shared<wide_string_input_adapter<std::u16string>>(ws)) {}
-
-    /// input adapter for UTF-32 string
-    input_adapter(const std::u32string& ws)
-        : ia(std::make_shared<wide_string_input_adapter<std::u32string>>(ws)) {}
+    template<typename T>
+    input_adapter(T&& t, T&& u)
+        : ia(make_input_adapter(std::forward<T>(t), std::forward<T>(u))) {}
 
     /// input adapter for character buffer
     template<typename CharT,
@@ -372,75 +481,12 @@ class input_adapter
                  sizeof(typename std::remove_pointer<CharT>::type) == 1,
                  int>::type = 0>
     input_adapter(CharT b, std::size_t l)
-        : ia(std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(b), l)) {}
-
-    // derived support
-
-    /// input adapter for string literal
-    template<typename CharT,
-             typename std::enable_if<
-                 std::is_pointer<CharT>::value and
-                 std::is_integral<typename std::remove_pointer<CharT>::type>::value and
-                 sizeof(typename std::remove_pointer<CharT>::type) == 1,
-                 int>::type = 0>
-    input_adapter(CharT b)
-        : input_adapter(reinterpret_cast<const char*>(b),
-                        std::strlen(reinterpret_cast<const char*>(b))) {}
-
-    /// input adapter for iterator range with contiguous storage
-    template<class IteratorType,
-             typename std::enable_if<
-                 std::is_same<typename iterator_traits<IteratorType>::iterator_category, std::random_access_iterator_tag>::value,
-                 int>::type = 0>
-    input_adapter(IteratorType first, IteratorType last)
-    {
-#ifndef NDEBUG
-        // assertion to check that the iterator range is indeed contiguous,
-        // see http://stackoverflow.com/a/35008842/266378 for more discussion
-        const auto is_contiguous = std::accumulate(
-                                       first, last, std::pair<bool, int>(true, 0),
-                                       [&first](std::pair<bool, int> res, decltype(*first) val)
-        {
-            res.first &= (val == *(std::next(std::addressof(*first), res.second++)));
-            return res;
-        }).first;
-        assert(is_contiguous);
-#endif
-
-        // assertion to check that each element is 1 byte long
-        static_assert(
-            sizeof(typename iterator_traits<IteratorType>::value_type) == 1,
-            "each element in the iterator range must have the size of 1 byte");
-
-        const auto len = static_cast<size_t>(std::distance(first, last));
-        if (JSON_LIKELY(len > 0))
-        {
-            // there is at least one element: use the address of first
-            ia = std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(&(*first)), len);
-        }
-        else
-        {
-            // the address of first cannot be used: use nullptr
-            ia = std::make_shared<input_buffer_adapter>(nullptr, len);
-        }
-    }
+        : ia(make_input_adapter(b, l)) {}
 
     /// input adapter for character array
     template<class T, std::size_t N>
     input_adapter(T (&array)[N])
-        : input_adapter(std::begin(array), std::end(array)) {}
-
-    /// input adapter for contiguous container
-    template<class ContiguousContainer, typename
-             std::enable_if<not std::is_pointer<ContiguousContainer>::value and
-                            std::is_base_of<std::random_access_iterator_tag, typename iterator_traits<decltype(std::begin(std::declval<ContiguousContainer const>()))>::iterator_category>::value,
-                            int>::type = 0>
-    input_adapter(const ContiguousContainer& c)
-        : input_adapter(std::begin(c), std::end(c)) {}
-
-    /// extension point for user-defined input adapters
-    explicit input_adapter(input_adapter_t ia_)
-        : ia(ia_) {}
+        : ia(make_input_adapter(array)) {}
 
     /// implicit conversion to simplify invokations of @ref nlohmann::json::parse
     operator input_adapter_t()

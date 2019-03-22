@@ -106,6 +106,30 @@ class output_string_adapter : public output_adapter_protocol<CharType>
     StringType& str;
 };
 
+template<typename CharType>
+output_adapter_t<CharType> make_output_adapter(std::vector<CharType>& vec)
+{
+    return std::make_shared<output_vector_adapter<CharType>>(vec);
+}
+
+template<typename CharType>
+output_adapter_t<CharType> make_output_adapter(std::basic_ostream<CharType>& s)
+{
+    return std::make_shared<output_stream_adapter<CharType>>(s);
+}
+
+template<typename CharType, typename StringType = std::basic_string<CharType>>
+output_adapter_t<CharType> make_output_adapter(StringType& s)
+{
+    return std::make_shared<output_string_adapter<CharType, StringType>>(s);
+}
+
+template<typename CharType>
+output_adapter_t<CharType> make_output_adapter(output_adapter_t<CharType> oa)
+{
+    return oa;
+}
+
 /*!
 @brief Convenience wrapper around @ref output_adapter_protocol.
 @tparam CharType  type of the characters (e.h., `char` or `std::uint8_t`)
@@ -115,14 +139,16 @@ template<typename CharType, typename StringType = std::basic_string<CharType>>
 class output_adapter
 {
   public:
+    using char_type = CharType;
+
     output_adapter(std::vector<CharType>& vec)
-        : oa(std::make_shared<output_vector_adapter<CharType>>(vec)) {}
+        : oa(make_output_adapter<CharType>(vec)) {}
 
     output_adapter(std::basic_ostream<CharType>& s)
-        : oa(std::make_shared<output_stream_adapter<CharType>>(s)) {}
+        : oa(make_output_adapter<CharType>(s)) {}
 
     output_adapter(StringType& s)
-        : oa(std::make_shared<output_string_adapter<CharType, StringType>>(s)) {}
+        : oa(make_output_adapter<CharType, StringType>(s)) {}
 
     /// extension point for user-defined output adapters
     explicit output_adapter(output_adapter_t<CharType> oa_)
