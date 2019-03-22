@@ -9643,6 +9643,8 @@ template<typename CharType, typename StringType = std::basic_string<CharType>>
 class output_adapter
 {
   public:
+    using char_type = CharType;
+
     output_adapter(std::vector<CharType>& vec)
         : oa(make_output_adapter<CharType>(vec)) {}
 
