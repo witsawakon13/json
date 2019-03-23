@@ -2572,128 +2572,6 @@ class wide_string_input_adapter : public input_adapter_protocol
     std::size_t utf8_bytes_filled = 0;
 };
 
-/// input adapter for C FILE p
-input_adapter_t make_input_adapter(std::FILE* file)
-{
-    return std::make_shared<file_input_adapter>(file);
-}
-
-/// input adapter for input stream
-input_adapter_t make_input_adapter(std::istream& i)
-{
-    return std::make_shared<input_stream_adapter>(i);
-}
-
-/// input adapter for input stream
-input_adapter_t make_input_adapter(std::istream&& i)
-{
-    return std::make_shared<input_stream_adapter>(i);
-}
-
-/// input adapter for wide string
-input_adapter_t make_input_adapter(const std::wstring& ws)
-{
-    return std::make_shared<wide_string_input_adapter<std::wstring>>(ws);
-}
-
-/// input adapter for UTF-16 string
-input_adapter_t make_input_adapter(const std::u16string& ws)
-{
-    return std::make_shared<wide_string_input_adapter<std::u16string>>(ws);
-}
-
-/// input adapter for UTF-32 string
-input_adapter_t make_input_adapter(const std::u32string& ws)
-{
-    return std::make_shared<wide_string_input_adapter<std::u32string>>(ws);
-}
-
-/// input adapter for character buffer
-template<typename CharT,
-         typename std::enable_if<
-             std::is_pointer<CharT>::value and
-             std::is_integral<typename std::remove_pointer<CharT>::type>::value and
-             sizeof(typename std::remove_pointer<CharT>::type) == 1,
-             int>::type = 0>
-input_adapter_t make_input_adapter(CharT b, std::size_t l)
-{
-    return std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(b), l);
-}
-
-/// input adapter for string literal
-template<typename CharT,
-         typename std::enable_if<
-             std::is_pointer<CharT>::value and
-             std::is_integral<typename std::remove_pointer<CharT>::type>::value and
-             sizeof(typename std::remove_pointer<CharT>::type) == 1,
-             int>::type = 0>
-input_adapter_t make_input_adapter(CharT b)
-{
-    return  make_input_adapter(reinterpret_cast<const char*>(b),
-                               std::strlen(reinterpret_cast<const char*>(b)));
-}
-
-/// input adapter for iterator range with contiguous storage
-template<class IteratorType,
-         typename std::enable_if<
-             std::is_same<typename iterator_traits<IteratorType>::iterator_category, std::random_access_iterator_tag>::value,
-             int>::type = 0>
-input_adapter_t make_input_adapter(IteratorType first, IteratorType last)
-{
-#ifndef NDEBUG
-    // assertion to check that the iterator range is indeed contiguous,
-    // see http://stackoverflow.com/a/35008842/266378 for more discussion
-    const auto is_contiguous = std::accumulate(
-                                   first, last, std::pair<bool, int>(true, 0),
-                                   [&first](std::pair<bool, int> res, decltype(*first) val)
-    {
-        res.first &= (val == *(std::next(std::addressof(*first), res.second++)));
-        return res;
-    }).first;
-    assert(is_contiguous);
-#endif
-
-    // assertion to check that each element is 1 byte long
-    static_assert(
-        sizeof(typename iterator_traits<IteratorType>::value_type) == 1,
-        "each element in the iterator range must have the size of 1 byte");
-
-    const auto len = static_cast<size_t>(std::distance(first, last));
-    if (JSON_LIKELY(len > 0))
-    {
-        // there is at least one element: use the address of first
-        return std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(&(*first)), len);
-    }
-    else
-    {
-        // the address of first cannot be used: use nullptr
-        return std::make_shared<input_buffer_adapter>(nullptr, len);
-    }
-}
-
-/// input adapter for character array
-template<class T, std::size_t N>
-input_adapter_t make_input_adapter(T (&array)[N])
-{
-    return make_input_adapter(std::begin(array), std::end(array));
-}
-
-/// input adapter for contiguous container
-template<class ContiguousContainer, typename
-         std::enable_if<not std::is_pointer<ContiguousContainer>::value and
-                        std::is_base_of<std::random_access_iterator_tag, typename iterator_traits<decltype(std::begin(std::declval<ContiguousContainer const>()))>::iterator_category>::value,
-                        int>::type = 0>
-input_adapter_t make_input_adapter(const ContiguousContainer& c)
-{
-    return make_input_adapter(std::begin(c), std::end(c));
-}
-
-/// extension point for user-defined input adapters
-input_adapter_t make_input_adapter(input_adapter_t ia)
-{
-    return ia;
-}
-
 /*!
 @brief Convenience wrapper around @ref input_adapter_protocol.
 */
@@ -2725,6 +2603,123 @@ class input_adapter
 
     /// implicit conversion to simplify invokations of @ref nlohmann::json::parse
     operator input_adapter_t()
+    {
+        return ia;
+    }
+
+    /// input adapter for C FILE p
+    static input_adapter_t make_input_adapter(std::FILE* file)
+    {
+        return std::make_shared<file_input_adapter>(file);
+    }
+
+    /// input adapter for input stream
+    static input_adapter_t make_input_adapter(std::istream& i)
+    {
+        return std::make_shared<input_stream_adapter>(i);
+    }
+
+    /// input adapter for input stream
+    static input_adapter_t make_input_adapter(std::istream&& i)
+    {
+        return std::make_shared<input_stream_adapter>(i);
+    }
+
+    /// input adapter for wide string
+    static input_adapter_t make_input_adapter(const std::wstring& ws)
+    {
+        return std::make_shared<wide_string_input_adapter<std::wstring>>(ws);
+    }
+
+    /// input adapter for UTF-16 string
+    static input_adapter_t make_input_adapter(const std::u16string& ws)
+    {
+        return std::make_shared<wide_string_input_adapter<std::u16string>>(ws);
+    }
+
+    /// input adapter for UTF-32 string
+    static input_adapter_t make_input_adapter(const std::u32string& ws)
+    {
+        return std::make_shared<wide_string_input_adapter<std::u32string>>(ws);
+    }
+
+    /// input adapter for character buffer
+    template<typename CharT,
+             typename std::enable_if<
+                 std::is_pointer<CharT>::value and
+                 std::is_integral<typename std::remove_pointer<CharT>::type>::value and
+                 sizeof(typename std::remove_pointer<CharT>::type) == 1,
+                 int>::type = 0>
+    static input_adapter_t make_input_adapter(CharT b, std::size_t l)
+    {
+        return std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(b), l);
+    }
+
+    /// input adapter for string literal
+    template<typename CharT,
+             typename std::enable_if<
+                 std::is_pointer<CharT>::value and
+                 std::is_integral<typename std::remove_pointer<CharT>::type>::value and
+                 sizeof(typename std::remove_pointer<CharT>::type) == 1,
+                 int>::type = 0>
+    static input_adapter_t make_input_adapter(CharT b)
+    {
+        return  make_input_adapter(reinterpret_cast<const char*>(b),
+                                   std::strlen(reinterpret_cast<const char*>(b)));
+    }
+
+    /// input adapter for iterator range with contiguous storage
+    template<class IteratorType,
+             typename std::enable_if<
+                 std::is_same<typename iterator_traits<IteratorType>::iterator_category, std::random_access_iterator_tag>::value,
+                 int>::type = 0>
+    static input_adapter_t make_input_adapter(IteratorType first, IteratorType last)
+    {
+#ifndef NDEBUG
+        // assertion to check that the iterator range is indeed contiguous,
+        // see http://stackoverflow.com/a/35008842/266378 for more discussion
+        const auto is_contiguous = std::accumulate(
+                                       first, last, std::pair<bool, int>(true, 0),
+                                       [&first](std::pair<bool, int> res, decltype(*first) val)
+        {
+            res.first &= (val == *(std::next(std::addressof(*first), res.second++)));
+            return res;
+        }).first;
+        assert(is_contiguous);
+#endif
+
+        // assertion to check that each element is 1 byte long
+        static_assert(
+            sizeof(typename iterator_traits<IteratorType>::value_type) == 1,
+            "each element in the iterator range must have the size of 1 byte");
+
+        const auto len = static_cast<size_t>(std::distance(first, last));
+        return JSON_LIKELY(len > 0)
+               // there is at least one element: use the address of first
+               ? std::make_shared<input_buffer_adapter>(reinterpret_cast<const char*>(&(*first)), len)
+               // the address of first cannot be used: use nullptr
+               : std::make_shared<input_buffer_adapter>(nullptr, len);
+    }
+
+    /// input adapter for character array
+    template<class T, std::size_t N>
+    static input_adapter_t make_input_adapter(T (&array)[N])
+    {
+        return make_input_adapter(std::begin(array), std::end(array));
+    }
+
+    /// input adapter for contiguous container
+    template<class ContiguousContainer, typename
+             std::enable_if<not std::is_pointer<ContiguousContainer>::value and
+                            std::is_base_of<std::random_access_iterator_tag, typename iterator_traits<decltype(std::begin(std::declval<ContiguousContainer const>()))>::iterator_category>::value,
+                            int>::type = 0>
+    static input_adapter_t make_input_adapter(const ContiguousContainer& c)
+    {
+        return make_input_adapter(std::begin(c), std::end(c));
+    }
+
+    /// extension point for user-defined input adapters
+    static input_adapter_t make_input_adapter(input_adapter_t ia)
     {
         return ia;
     }
@@ -9518,46 +9513,44 @@ namespace nlohmann
 namespace detail
 {
 /// abstract output adapter interface
-template<typename CharType>
 struct output_adapter_protocol
 {
     /*!
     @brief write a character to the output
     @param[in] c  character to write
     */
-    virtual void write_character(CharType c) = 0;
+    virtual void write_character(std::uint8_t c) = 0;
 
     /*!
     @brief write some characters to the output
     @param[in] s  pointer to a continouus chunk of memory
     @param[in] length  number of bytes to write
     */
-    virtual void write_characters(const CharType* s, std::size_t length) = 0;
+    virtual void write_characters(const std::uint8_t* s, std::size_t length) = 0;
 
     virtual ~output_adapter_protocol() = default;
 };
 
 /// a type to simplify interfaces
-template<typename CharType>
-using output_adapter_t = std::shared_ptr<output_adapter_protocol<CharType>>;
+using output_adapter_t = std::shared_ptr<output_adapter_protocol>;
 
 /// output adapter for byte vectors
 template<typename CharType>
-class output_vector_adapter : public output_adapter_protocol<CharType>
+class output_vector_adapter : public output_adapter_protocol
 {
   public:
     explicit output_vector_adapter(std::vector<CharType>& vec) noexcept
         : v(vec)
     {}
 
-    void write_character(CharType c) override
+    void write_character(std::uint8_t c) override
     {
         v.push_back(c);
     }
 
-    void write_characters(const CharType* s, std::size_t length) override
+    void write_characters(const std::uint8_t* s, std::size_t length) override
     {
-        std::copy(s, s + length, std::back_inserter(v));
+        std::copy(reinterpret_cast<const typename std::vector<CharType>::value_type*>(s), s + length, std::back_inserter(v));
     }
 
   private:
@@ -9566,21 +9559,21 @@ class output_vector_adapter : public output_adapter_protocol<CharType>
 
 /// output adapter for output streams
 template<typename CharType>
-class output_stream_adapter : public output_adapter_protocol<CharType>
+class output_stream_adapter : public output_adapter_protocol
 {
   public:
     explicit output_stream_adapter(std::basic_ostream<CharType>& s) noexcept
         : stream(s)
     {}
 
-    void write_character(CharType c) override
+    void write_character(std::uint8_t c) override
     {
-        stream.put(c);
+        stream.put(static_cast<typename std::basic_ostream<CharType>::char_type>(c));
     }
 
-    void write_characters(const CharType* s, std::size_t length) override
+    void write_characters(const std::uint8_t* s, std::size_t length) override
     {
-        stream.write(s, static_cast<std::streamsize>(length));
+        stream.write(reinterpret_cast<const typename std::basic_ostream<CharType>::char_type*>(s), static_cast<std::streamsize>(length));
     }
 
   private:
@@ -9588,83 +9581,87 @@ class output_stream_adapter : public output_adapter_protocol<CharType>
 };
 
 /// output adapter for basic_string
-template<typename CharType, typename StringType = std::basic_string<CharType>>
-class output_string_adapter : public output_adapter_protocol<CharType>
+template<typename StringType>
+class output_string_adapter : public output_adapter_protocol
 {
   public:
     explicit output_string_adapter(StringType& s) noexcept
         : str(s)
     {}
 
-    void write_character(CharType c) override
+    void write_character(std::uint8_t c) override
     {
-        str.push_back(c);
+        str.push_back(static_cast<typename StringType::value_type>(c));
     }
 
-    void write_characters(const CharType* s, std::size_t length) override
+    void write_characters(const std::uint8_t* s, std::size_t length) override
     {
-        str.append(s, length);
+        str.append(reinterpret_cast<const typename StringType::value_type*>(s), length);
     }
 
   private:
     StringType& str;
 };
 
-template<typename CharType>
-output_adapter_t<CharType> make_output_adapter(std::vector<CharType>& vec)
-{
-    return std::make_shared<output_vector_adapter<CharType>>(vec);
-}
-
-template<typename CharType>
-output_adapter_t<CharType> make_output_adapter(std::basic_ostream<CharType>& s)
-{
-    return std::make_shared<output_stream_adapter<CharType>>(s);
-}
-
-template<typename CharType, typename StringType = std::basic_string<CharType>>
-output_adapter_t<CharType> make_output_adapter(StringType& s)
-{
-    return std::make_shared<output_string_adapter<CharType, StringType>>(s);
-}
-
-template<typename CharType>
-output_adapter_t<CharType> make_output_adapter(output_adapter_t<CharType> oa)
-{
-    return oa;
-}
-
 /*!
 @brief Convenience wrapper around @ref output_adapter_protocol.
-@tparam CharType  type of the characters (e.h., `char` or `std::uint8_t`)
-@tparam StringType  string type derived from @a CharType
 */
-template<typename CharType, typename StringType = std::basic_string<CharType>>
 class output_adapter
 {
   public:
-    using char_type = CharType;
-
+    template<typename CharType>
     output_adapter(std::vector<CharType>& vec)
         : oa(make_output_adapter<CharType>(vec)) {}
 
+    template<typename CharType>
     output_adapter(std::basic_ostream<CharType>& s)
         : oa(make_output_adapter<CharType>(s)) {}
 
-    output_adapter(StringType& s)
-        : oa(make_output_adapter<CharType, StringType>(s)) {}
+    template<typename CharType>
+    output_adapter(std::basic_string<CharType>& s)
+        : oa(make_output_adapter<CharType>(s)) {}
 
     /// extension point for user-defined output adapters
-    explicit output_adapter(output_adapter_t<CharType> oa_)
-        : oa(oa_) {}
+    explicit output_adapter(output_adapter_t oa_)
+        : oa(std::move(oa_)) {}
 
-    operator output_adapter_t<CharType>()
+    template<typename CharType>
+    static output_adapter_t make_output_adapter(std::vector<CharType>& vec)
+    {
+        return std::make_shared<output_vector_adapter<CharType>>(vec);
+    }
+
+    template<typename CharType>
+    static output_adapter_t make_output_adapter(std::basic_ostream<CharType>& s)
+    {
+        return std::make_shared<output_stream_adapter<CharType>>(s);
+    }
+
+    template<typename CharType>
+    static output_adapter_t make_output_adapter(std::basic_string<CharType>& s)
+    {
+        return std::make_shared<output_string_adapter<std::basic_string<CharType>>>(s);
+    }
+
+    template<typename StringType>
+    static output_adapter_t make_output_adapter(StringType& s)
+    {
+        return std::make_shared<output_string_adapter<StringType>>(s);
+    }
+
+    template<typename CharType>
+    static output_adapter_t make_output_adapter(output_adapter_t oa)
+    {
+        return oa;
+    }
+
+    operator output_adapter_t()
     {
         return oa;
     }
 
   private:
-    output_adapter_t<CharType> oa = nullptr;
+    output_adapter_t oa = nullptr;
 };
 }  // namespace detail
 }  // namespace nlohmann
@@ -9681,10 +9678,11 @@ namespace detail
 /*!
 @brief serialization to CBOR and MessagePack values
 */
-template<typename BasicJsonType, typename CharType>
+template<typename BasicJsonType>
 class binary_writer
 {
     using string_t = typename BasicJsonType::string_t;
+    using CharType = std::uint8_t;
 
   public:
     /*!
@@ -9692,7 +9690,7 @@ class binary_writer
 
     @param[in] adapter  output adapter to write to
     */
-    explicit binary_writer(output_adapter_t<CharType> adapter) : oa(adapter)
+    explicit binary_writer(output_adapter_t adapter) : oa(std::move(adapter))
     {
         assert(oa);
     }
@@ -9727,15 +9725,13 @@ class binary_writer
         {
             case value_t::null:
             {
-                oa->write_character(to_char_type(0xF6));
+                oa->write_character(0xF6);
                 break;
             }
 
             case value_t::boolean:
             {
-                oa->write_character(j.m_value.boolean
-                                    ? to_char_type(0xF5)
-                                    : to_char_type(0xF4));
+                oa->write_character(j.m_value.boolean ? 0xF5 : 0xF4);
                 break;
             }
 
@@ -9752,22 +9748,22 @@ class binary_writer
                     }
                     else if (j.m_value.number_integer <= (std::numeric_limits<std::uint8_t>::max)())
                     {
-                        oa->write_character(to_char_type(0x18));
+                        oa->write_character(0x18);
                         write_number(static_cast<std::uint8_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_integer <= (std::numeric_limits<std::uint16_t>::max)())
                     {
-                        oa->write_character(to_char_type(0x19));
+                        oa->write_character(0x19);
                         write_number(static_cast<std::uint16_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_integer <= (std::numeric_limits<std::uint32_t>::max)())
                     {
-                        oa->write_character(to_char_type(0x1A));
+                        oa->write_character(0x1A);
                         write_number(static_cast<std::uint32_t>(j.m_value.number_integer));
                     }
                     else
                     {
-                        oa->write_character(to_char_type(0x1B));
+                        oa->write_character(0x1B);
                         write_number(static_cast<std::uint64_t>(j.m_value.number_integer));
                     }
                 }
@@ -9782,22 +9778,22 @@ class binary_writer
                     }
                     else if (positive_number <= (std::numeric_limits<std::uint8_t>::max)())
                     {
-                        oa->write_character(to_char_type(0x38));
+                        oa->write_character(0x38);
                         write_number(static_cast<std::uint8_t>(positive_number));
                     }
                     else if (positive_number <= (std::numeric_limits<std::uint16_t>::max)())
                     {
-                        oa->write_character(to_char_type(0x39));
+                        oa->write_character(0x39);
                         write_number(static_cast<std::uint16_t>(positive_number));
                     }
                     else if (positive_number <= (std::numeric_limits<std::uint32_t>::max)())
                     {
-                        oa->write_character(to_char_type(0x3A));
+                        oa->write_character(0x3A);
                         write_number(static_cast<std::uint32_t>(positive_number));
                     }
                     else
                     {
-                        oa->write_character(to_char_type(0x3B));
+                        oa->write_character(0x3B);
                         write_number(static_cast<std::uint64_t>(positive_number));
                     }
                 }
@@ -9812,22 +9808,22 @@ class binary_writer
                 }
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint8_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x18));
+                    oa->write_character(0x18);
                     write_number(static_cast<std::uint8_t>(j.m_value.number_unsigned));
                 }
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint16_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x19));
+                    oa->write_character(0x19);
                     write_number(static_cast<std::uint16_t>(j.m_value.number_unsigned));
                 }
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint32_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x1A));
+                    oa->write_character(0x1A);
                     write_number(static_cast<std::uint32_t>(j.m_value.number_unsigned));
                 }
                 else
                 {
-                    oa->write_character(to_char_type(0x1B));
+                    oa->write_character(0x1B);
                     write_number(static_cast<std::uint64_t>(j.m_value.number_unsigned));
                 }
                 break;
@@ -9850,23 +9846,23 @@ class binary_writer
                 }
                 else if (N <= (std::numeric_limits<std::uint8_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x78));
+                    oa->write_character(0x78);
                     write_number(static_cast<std::uint8_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint16_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x79));
+                    oa->write_character(0x79);
                     write_number(static_cast<std::uint16_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint32_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x7A));
+                    oa->write_character(0x7A);
                     write_number(static_cast<std::uint32_t>(N));
                 }
                 // LCOV_EXCL_START
                 else if (N <= (std::numeric_limits<std::uint64_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x7B));
+                    oa->write_character(0x7B);
                     write_number(static_cast<std::uint64_t>(N));
                 }
                 // LCOV_EXCL_STOP
@@ -9888,23 +9884,23 @@ class binary_writer
                 }
                 else if (N <= (std::numeric_limits<std::uint8_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x98));
+                    oa->write_character(0x98);
                     write_number(static_cast<std::uint8_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint16_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x99));
+                    oa->write_character(0x99);
                     write_number(static_cast<std::uint16_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint32_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x9A));
+                    oa->write_character(0x9A);
                     write_number(static_cast<std::uint32_t>(N));
                 }
                 // LCOV_EXCL_START
                 else if (N <= (std::numeric_limits<std::uint64_t>::max)())
                 {
-                    oa->write_character(to_char_type(0x9B));
+                    oa->write_character(0x9B);
                     write_number(static_cast<std::uint64_t>(N));
                 }
                 // LCOV_EXCL_STOP
@@ -9927,23 +9923,23 @@ class binary_writer
                 }
                 else if (N <= (std::numeric_limits<std::uint8_t>::max)())
                 {
-                    oa->write_character(to_char_type(0xB8));
+                    oa->write_character(0xB8);
                     write_number(static_cast<std::uint8_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint16_t>::max)())
                 {
-                    oa->write_character(to_char_type(0xB9));
+                    oa->write_character(0xB9);
                     write_number(static_cast<std::uint16_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint32_t>::max)())
                 {
-                    oa->write_character(to_char_type(0xBA));
+                    oa->write_character(0xBA);
                     write_number(static_cast<std::uint32_t>(N));
                 }
                 // LCOV_EXCL_START
                 else if (N <= (std::numeric_limits<std::uint64_t>::max)())
                 {
-                    oa->write_character(to_char_type(0xBB));
+                    oa->write_character(0xBB);
                     write_number(static_cast<std::uint64_t>(N));
                 }
                 // LCOV_EXCL_STOP
@@ -9971,15 +9967,13 @@ class binary_writer
         {
             case value_t::null: // nil
             {
-                oa->write_character(to_char_type(0xC0));
+                oa->write_character(0xC0);
                 break;
             }
 
             case value_t::boolean: // true and false
             {
-                oa->write_character(j.m_value.boolean
-                                    ? to_char_type(0xC3)
-                                    : to_char_type(0xC2));
+                oa->write_character(j.m_value.boolean  ? 0xC3  : 0xC2);
                 break;
             }
 
@@ -9998,25 +9992,25 @@ class binary_writer
                     else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint8_t>::max)())
                     {
                         // uint 8
-                        oa->write_character(to_char_type(0xCC));
+                        oa->write_character(0xCC);
                         write_number(static_cast<std::uint8_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint16_t>::max)())
                     {
                         // uint 16
-                        oa->write_character(to_char_type(0xCD));
+                        oa->write_character(0xCD);
                         write_number(static_cast<std::uint16_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint32_t>::max)())
                     {
                         // uint 32
-                        oa->write_character(to_char_type(0xCE));
+                        oa->write_character(0xCE);
                         write_number(static_cast<std::uint32_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint64_t>::max)())
                     {
                         // uint 64
-                        oa->write_character(to_char_type(0xCF));
+                        oa->write_character(0xCF);
                         write_number(static_cast<std::uint64_t>(j.m_value.number_integer));
                     }
                 }
@@ -10031,28 +10025,28 @@ class binary_writer
                              j.m_value.number_integer <= (std::numeric_limits<std::int8_t>::max)())
                     {
                         // int 8
-                        oa->write_character(to_char_type(0xD0));
+                        oa->write_character(0xD0);
                         write_number(static_cast<std::int8_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_integer >= (std::numeric_limits<std::int16_t>::min)() and
                              j.m_value.number_integer <= (std::numeric_limits<std::int16_t>::max)())
                     {
                         // int 16
-                        oa->write_character(to_char_type(0xD1));
+                        oa->write_character(0xD1);
                         write_number(static_cast<std::int16_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_integer >= (std::numeric_limits<std::int32_t>::min)() and
                              j.m_value.number_integer <= (std::numeric_limits<std::int32_t>::max)())
                     {
                         // int 32
-                        oa->write_character(to_char_type(0xD2));
+                        oa->write_character(0xD2);
                         write_number(static_cast<std::int32_t>(j.m_value.number_integer));
                     }
                     else if (j.m_value.number_integer >= (std::numeric_limits<std::int64_t>::min)() and
                              j.m_value.number_integer <= (std::numeric_limits<std::int64_t>::max)())
                     {
                         // int 64
-                        oa->write_character(to_char_type(0xD3));
+                        oa->write_character(0xD3);
                         write_number(static_cast<std::int64_t>(j.m_value.number_integer));
                     }
                 }
@@ -10069,25 +10063,25 @@ class binary_writer
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint8_t>::max)())
                 {
                     // uint 8
-                    oa->write_character(to_char_type(0xCC));
+                    oa->write_character(0xCC);
                     write_number(static_cast<std::uint8_t>(j.m_value.number_integer));
                 }
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint16_t>::max)())
                 {
                     // uint 16
-                    oa->write_character(to_char_type(0xCD));
+                    oa->write_character(0xCD);
                     write_number(static_cast<std::uint16_t>(j.m_value.number_integer));
                 }
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint32_t>::max)())
                 {
                     // uint 32
-                    oa->write_character(to_char_type(0xCE));
+                    oa->write_character(0xCE);
                     write_number(static_cast<std::uint32_t>(j.m_value.number_integer));
                 }
                 else if (j.m_value.number_unsigned <= (std::numeric_limits<std::uint64_t>::max)())
                 {
                     // uint 64
-                    oa->write_character(to_char_type(0xCF));
+                    oa->write_character(0xCF);
                     write_number(static_cast<std::uint64_t>(j.m_value.number_integer));
                 }
                 break;
@@ -10112,19 +10106,19 @@ class binary_writer
                 else if (N <= (std::numeric_limits<std::uint8_t>::max)())
                 {
                     // str 8
-                    oa->write_character(to_char_type(0xD9));
+                    oa->write_character(0xD9);
                     write_number(static_cast<std::uint8_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint16_t>::max)())
                 {
                     // str 16
-                    oa->write_character(to_char_type(0xDA));
+                    oa->write_character(0xDA);
                     write_number(static_cast<std::uint16_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint32_t>::max)())
                 {
                     // str 32
-                    oa->write_character(to_char_type(0xDB));
+                    oa->write_character(0xDB);
                     write_number(static_cast<std::uint32_t>(N));
                 }
 
@@ -10147,13 +10141,13 @@ class binary_writer
                 else if (N <= (std::numeric_limits<std::uint16_t>::max)())
                 {
                     // array 16
-                    oa->write_character(to_char_type(0xDC));
+                    oa->write_character(0xDC);
                     write_number(static_cast<std::uint16_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint32_t>::max)())
                 {
                     // array 32
-                    oa->write_character(to_char_type(0xDD));
+                    oa->write_character(0xDD);
                     write_number(static_cast<std::uint32_t>(N));
                 }
 
@@ -10177,13 +10171,13 @@ class binary_writer
                 else if (N <= (std::numeric_limits<std::uint16_t>::max)())
                 {
                     // map 16
-                    oa->write_character(to_char_type(0xDE));
+                    oa->write_character(0xDE);
                     write_number(static_cast<std::uint16_t>(N));
                 }
                 else if (N <= (std::numeric_limits<std::uint32_t>::max)())
                 {
                     // map 32
-                    oa->write_character(to_char_type(0xDF));
+                    oa->write_character(0xDF);
                     write_number(static_cast<std::uint32_t>(N));
                 }
 
@@ -10216,7 +10210,7 @@ class binary_writer
             {
                 if (add_prefix)
                 {
-                    oa->write_character(to_char_type('Z'));
+                    oa->write_character('Z');
                 }
                 break;
             }
@@ -10225,9 +10219,7 @@ class binary_writer
             {
                 if (add_prefix)
                 {
-                    oa->write_character(j.m_value.boolean
-                                        ? to_char_type('T')
-                                        : to_char_type('F'));
+                    oa->write_character(j.m_value.boolean ? 'T'  : 'F');
                 }
                 break;
             }
@@ -10254,7 +10246,7 @@ class binary_writer
             {
                 if (add_prefix)
                 {
-                    oa->write_character(to_char_type('S'));
+                    oa->write_character('S');
                 }
                 write_number_with_ubjson_prefix(j.m_value.string->size(), true);
                 oa->write_characters(
@@ -10267,7 +10259,7 @@ class binary_writer
             {
                 if (add_prefix)
                 {
-                    oa->write_character(to_char_type('['));
+                    oa->write_character('[');
                 }
 
                 bool prefix_required = true;
@@ -10284,14 +10276,14 @@ class binary_writer
                     if (same_prefix)
                     {
                         prefix_required = false;
-                        oa->write_character(to_char_type('$'));
+                        oa->write_character('$');
                         oa->write_character(first_prefix);
                     }
                 }
 
                 if (use_count)
                 {
-                    oa->write_character(to_char_type('#'));
+                    oa->write_character('#');
                     write_number_with_ubjson_prefix(j.m_value.array->size(), true);
                 }
 
@@ -10302,7 +10294,7 @@ class binary_writer
 
                 if (not use_count)
                 {
-                    oa->write_character(to_char_type(']'));
+                    oa->write_character(']');
                 }
 
                 break;
@@ -10312,7 +10304,7 @@ class binary_writer
             {
                 if (add_prefix)
                 {
-                    oa->write_character(to_char_type('{'));
+                    oa->write_character('{');
                 }
 
                 bool prefix_required = true;
@@ -10329,14 +10321,14 @@ class binary_writer
                     if (same_prefix)
                     {
                         prefix_required = false;
-                        oa->write_character(to_char_type('$'));
+                        oa->write_character('$');
                         oa->write_character(first_prefix);
                     }
                 }
 
                 if (use_count)
                 {
-                    oa->write_character(to_char_type('#'));
+                    oa->write_character('#');
                     write_number_with_ubjson_prefix(j.m_value.object->size(), true);
                 }
 
@@ -10351,7 +10343,7 @@ class binary_writer
 
                 if (not use_count)
                 {
-                    oa->write_character(to_char_type('}'));
+                    oa->write_character('}');
                 }
 
                 break;
@@ -10389,7 +10381,7 @@ class binary_writer
     void write_bson_entry_header(const string_t& name,
                                  const std::uint8_t element_type)
     {
-        oa->write_character(to_char_type(element_type)); // boolean
+        oa->write_character(element_type); // boolean
         oa->write_characters(
             reinterpret_cast<const CharType*>(name.c_str()),
             name.size() + 1u);
@@ -10402,7 +10394,7 @@ class binary_writer
                             const bool value)
     {
         write_bson_entry_header(name, 0x08);
-        oa->write_character(value ? to_char_type(0x01) : to_char_type(0x00));
+        oa->write_character(value ? 0x01 : 0x00);
     }
 
     /*!
@@ -10547,7 +10539,7 @@ class binary_writer
             write_bson_element(std::to_string(array_index++), el);
         }
 
-        oa->write_character(to_char_type(0x00));
+        oa->write_character(0x00);
     }
 
     /*!
@@ -10666,7 +10658,7 @@ class binary_writer
             write_bson_element(el.first, el.second);
         }
 
-        oa->write_character(to_char_type(0x00));
+        oa->write_character(0x00);
     }
 
     //////////
@@ -10675,12 +10667,12 @@ class binary_writer
 
     static constexpr CharType get_cbor_float_prefix(float /*unused*/)
     {
-        return to_char_type(0xFA);  // Single-Precision Float
+        return 0xFA;  // Single-Precision Float
     }
 
     static constexpr CharType get_cbor_float_prefix(double /*unused*/)
     {
-        return to_char_type(0xFB);  // Double-Precision Float
+        return 0xFB;  // Double-Precision Float
     }
 
     /////////////
@@ -10689,12 +10681,12 @@ class binary_writer
 
     static constexpr CharType get_msgpack_float_prefix(float /*unused*/)
     {
-        return to_char_type(0xCA);  // float 32
+        return 0xCA;  // float 32
     }
 
     static constexpr CharType get_msgpack_float_prefix(double /*unused*/)
     {
-        return to_char_type(0xCB);  // float 64
+        return 0xCB;  // float 64
     }
 
     ////////////
@@ -10724,7 +10716,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('i'));  // int8
+                oa->write_character('i');  // int8
             }
             write_number(static_cast<std::uint8_t>(n));
         }
@@ -10732,7 +10724,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('U'));  // uint8
+                oa->write_character('U');  // uint8
             }
             write_number(static_cast<std::uint8_t>(n));
         }
@@ -10740,7 +10732,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('I'));  // int16
+                oa->write_character('I');  // int16
             }
             write_number(static_cast<std::int16_t>(n));
         }
@@ -10748,7 +10740,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('l'));  // int32
+                oa->write_character('l');  // int32
             }
             write_number(static_cast<std::int32_t>(n));
         }
@@ -10756,7 +10748,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('L'));  // int64
+                oa->write_character('L');  // int64
             }
             write_number(static_cast<std::int64_t>(n));
         }
@@ -10777,7 +10769,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('i'));  // int8
+                oa->write_character('i');  // int8
             }
             write_number(static_cast<std::int8_t>(n));
         }
@@ -10785,7 +10777,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('U'));  // uint8
+                oa->write_character('U');  // uint8
             }
             write_number(static_cast<std::uint8_t>(n));
         }
@@ -10793,7 +10785,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('I'));  // int16
+                oa->write_character('I');  // int16
             }
             write_number(static_cast<std::int16_t>(n));
         }
@@ -10801,7 +10793,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('l'));  // int32
+                oa->write_character('l');  // int32
             }
             write_number(static_cast<std::int32_t>(n));
         }
@@ -10809,7 +10801,7 @@ class binary_writer
         {
             if (add_prefix)
             {
-                oa->write_character(to_char_type('L'));  // int64
+                oa->write_character('L');  // int64
             }
             write_number(static_cast<std::int64_t>(n));
         }
@@ -10943,53 +10935,12 @@ class binary_writer
         oa->write_characters(vec.data(), sizeof(NumberType));
     }
 
-  public:
-    // The following to_char_type functions are implement the conversion
-    // between uint8_t and CharType. In case CharType is not unsigned,
-    // such a conversion is required to allow values greater than 128.
-    // See <https://github.com/nlohmann/json/issues/1286> for a discussion.
-    template < typename C = CharType,
-               enable_if_t < std::is_signed<C>::value and std::is_signed<char>::value > * = nullptr >
-    static constexpr CharType to_char_type(std::uint8_t x) noexcept
-    {
-        return *reinterpret_cast<char*>(&x);
-    }
-
-    template < typename C = CharType,
-               enable_if_t < std::is_signed<C>::value and std::is_unsigned<char>::value > * = nullptr >
-    static CharType to_char_type(std::uint8_t x) noexcept
-    {
-        static_assert(sizeof(std::uint8_t) == sizeof(CharType), "size of CharType must be equal to std::uint8_t");
-        static_assert(std::is_pod<CharType>::value, "CharType must be POD");
-        CharType result;
-        std::memcpy(&result, &x, sizeof(x));
-        return result;
-    }
-
-    template<typename C = CharType,
-             enable_if_t<std::is_unsigned<C>::value>* = nullptr>
-    static constexpr CharType to_char_type(std::uint8_t x) noexcept
-    {
-        return x;
-    }
-
-    template < typename InputCharType, typename C = CharType,
-               enable_if_t <
-                   std::is_signed<C>::value and
-                   std::is_signed<char>::value and
-                   std::is_same<char, typename std::remove_cv<InputCharType>::type>::value
-                   > * = nullptr >
-    static constexpr CharType to_char_type(InputCharType x) noexcept
-    {
-        return x;
-    }
-
   private:
     /// whether we can assume little endianess
     const bool is_little_endian = binary_reader<BasicJsonType>::little_endianess();
 
     /// the output
-    output_adapter_t<CharType> oa = nullptr;
+    output_adapter_t oa = nullptr;
 };
 }  // namespace detail
 }  // namespace nlohmann
@@ -12118,8 +12069,6 @@ char* to_chars(char* first, const char* last, FloatType value)
 
 // #include <nlohmann/detail/meta/cpp_future.hpp>
 
-// #include <nlohmann/detail/output/binary_writer.hpp>
-
 // #include <nlohmann/detail/output/output_adapters.hpp>
 
 // #include <nlohmann/detail/value_t.hpp>
@@ -12151,13 +12100,19 @@ class serializer
     static constexpr std::uint8_t UTF8_ACCEPT = 0;
     static constexpr std::uint8_t UTF8_REJECT = 1;
 
+    template<typename CharType>
+    const std::uint8_t* conv(const CharType* s)
+    {
+        return reinterpret_cast<const std::uint8_t*>(s);
+    }
+
   public:
     /*!
     @param[in] s  output stream to serialize to
     @param[in] ichar  indentation character to use
     @param[in] error_handler_  how to react on decoding errors
     */
-    serializer(output_adapter_t<char> s, const char ichar,
+    serializer(output_adapter_t s, const char ichar,
                error_handler_t error_handler_ = error_handler_t::strict)
         : o(std::move(s))
         , loc(std::localeconv())
@@ -12203,13 +12158,13 @@ class serializer
             {
                 if (val.m_value.object->empty())
                 {
-                    o->write_characters("{}", 2);
+                    o->write_characters(conv("{}"), 2);
                     return;
                 }
 
                 if (pretty_print)
                 {
-                    o->write_characters("{\n", 2);
+                    o->write_characters(conv("{\n"), 2);
 
                     // variable to hold indentation for recursive calls
                     const auto new_indent = current_indent + indent_step;
@@ -12222,25 +12177,25 @@ class serializer
                     auto i = val.m_value.object->cbegin();
                     for (std::size_t cnt = 0; cnt < val.m_value.object->size() - 1; ++cnt, ++i)
                     {
-                        o->write_characters(indent_string.c_str(), new_indent);
+                        o->write_characters(conv(indent_string.c_str()), new_indent);
                         o->write_character('\"');
                         dump_escaped(i->first, ensure_ascii);
-                        o->write_characters("\": ", 3);
+                        o->write_characters(conv("\": "), 3);
                         dump(i->second, true, ensure_ascii, indent_step, new_indent);
-                        o->write_characters(",\n", 2);
+                        o->write_characters(conv(",\n"), 2);
                     }
 
                     // last element
                     assert(i != val.m_value.object->cend());
                     assert(std::next(i) == val.m_value.object->cend());
-                    o->write_characters(indent_string.c_str(), new_indent);
+                    o->write_characters(conv(indent_string.c_str()), new_indent);
                     o->write_character('\"');
                     dump_escaped(i->first, ensure_ascii);
-                    o->write_characters("\": ", 3);
+                    o->write_characters(conv("\": "), 3);
                     dump(i->second, true, ensure_ascii, indent_step, new_indent);
 
                     o->write_character('\n');
-                    o->write_characters(indent_string.c_str(), current_indent);
+                    o->write_characters(conv(indent_string.c_str()), current_indent);
                     o->write_character('}');
                 }
                 else
@@ -12253,7 +12208,7 @@ class serializer
                     {
                         o->write_character('\"');
                         dump_escaped(i->first, ensure_ascii);
-                        o->write_characters("\":", 2);
+                        o->write_characters(conv("\":"), 2);
                         dump(i->second, false, ensure_ascii, indent_step, current_indent);
                         o->write_character(',');
                     }
@@ -12263,7 +12218,7 @@ class serializer
                     assert(std::next(i) == val.m_value.object->cend());
                     o->write_character('\"');
                     dump_escaped(i->first, ensure_ascii);
-                    o->write_characters("\":", 2);
+                    o->write_characters(conv("\":"), 2);
                     dump(i->second, false, ensure_ascii, indent_step, current_indent);
 
                     o->write_character('}');
@@ -12276,13 +12231,13 @@ class serializer
             {
                 if (val.m_value.array->empty())
                 {
-                    o->write_characters("[]", 2);
+                    o->write_characters(conv("[]"), 2);
                     return;
                 }
 
                 if (pretty_print)
                 {
-                    o->write_characters("[\n", 2);
+                    o->write_characters(conv("[\n"), 2);
 
                     // variable to hold indentation for recursive calls
                     const auto new_indent = current_indent + indent_step;
@@ -12295,18 +12250,18 @@ class serializer
                     for (auto i = val.m_value.array->cbegin();
                             i != val.m_value.array->cend() - 1; ++i)
                     {
-                        o->write_characters(indent_string.c_str(), new_indent);
+                        o->write_characters(conv(indent_string.c_str()), new_indent);
                         dump(*i, true, ensure_ascii, indent_step, new_indent);
-                        o->write_characters(",\n", 2);
+                        o->write_characters(conv(",\n"), 2);
                     }
 
                     // last element
                     assert(not val.m_value.array->empty());
-                    o->write_characters(indent_string.c_str(), new_indent);
+                    o->write_characters(conv(indent_string.c_str()), new_indent);
                     dump(val.m_value.array->back(), true, ensure_ascii, indent_step, new_indent);
 
                     o->write_character('\n');
-                    o->write_characters(indent_string.c_str(), current_indent);
+                    o->write_characters(conv(indent_string.c_str()), current_indent);
                     o->write_character(']');
                 }
                 else
@@ -12343,11 +12298,11 @@ class serializer
             {
                 if (val.m_value.boolean)
                 {
-                    o->write_characters("true", 4);
+                    o->write_characters(conv("true"), 4);
                 }
                 else
                 {
-                    o->write_characters("false", 5);
+                    o->write_characters(conv("false"), 5);
                 }
                 return;
             }
@@ -12372,13 +12327,13 @@ class serializer
 
             case value_t::discarded:
             {
-                o->write_characters("<discarded>", 11);
+                o->write_characters(conv("<discarded>"), 11);
                 return;
             }
 
             case value_t::null:
             {
-                o->write_characters("null", 4);
+                o->write_characters(conv("null"), 4);
                 return;
             }
 
@@ -12506,7 +12461,7 @@ class serializer
                     // written ("\uxxxx\uxxxx\0") for one code point
                     if (string_buffer.size() - bytes < 13)
                     {
-                        o->write_characters(string_buffer.data(), bytes);
+                        o->write_characters(conv(string_buffer.data()), bytes);
                         bytes = 0;
                     }
 
@@ -12557,9 +12512,9 @@ class serializer
                                 }
                                 else
                                 {
-                                    string_buffer[bytes++] = detail::binary_writer<BasicJsonType, char>::to_char_type('\xEF');
-                                    string_buffer[bytes++] = detail::binary_writer<BasicJsonType, char>::to_char_type('\xBF');
-                                    string_buffer[bytes++] = detail::binary_writer<BasicJsonType, char>::to_char_type('\xBD');
+                                    string_buffer[bytes++] = '\xEF';
+                                    string_buffer[bytes++] = '\xBF';
+                                    string_buffer[bytes++] = '\xBD';
                                 }
 
                                 // write buffer and reset index; there must be 13 bytes
@@ -12567,7 +12522,7 @@ class serializer
                                 // written ("\uxxxx\uxxxx\0") for one code point
                                 if (string_buffer.size() - bytes < 13)
                                 {
-                                    o->write_characters(string_buffer.data(), bytes);
+                                    o->write_characters(conv(string_buffer.data()), bytes);
                                     bytes = 0;
                                 }
 
@@ -12606,7 +12561,7 @@ class serializer
             // write buffer
             if (bytes > 0)
             {
-                o->write_characters(string_buffer.data(), bytes);
+                o->write_characters(conv(string_buffer.data()), bytes);
             }
         }
         else
@@ -12624,22 +12579,22 @@ class serializer
                 case error_handler_t::ignore:
                 {
                     // write all accepted bytes
-                    o->write_characters(string_buffer.data(), bytes_after_last_accept);
+                    o->write_characters(conv(string_buffer.data()), bytes_after_last_accept);
                     break;
                 }
 
                 case error_handler_t::replace:
                 {
                     // write all accepted bytes
-                    o->write_characters(string_buffer.data(), bytes_after_last_accept);
+                    o->write_characters(conv(string_buffer.data()), bytes_after_last_accept);
                     // add a replacement character
                     if (ensure_ascii)
                     {
-                        o->write_characters("\\ufffd", 6);
+                        o->write_characters(conv("\\ufffd"), 6);
                     }
                     else
                     {
-                        o->write_characters("\xEF\xBF\xBD", 3);
+                        o->write_characters(conv("\xEF\xBF\xBD"), 3);
                     }
                     break;
                 }
@@ -12772,7 +12727,7 @@ class serializer
             *(--buffer_ptr) = static_cast<char>('0' + abs_value);
         }
 
-        o->write_characters(number_buffer.data(), n_chars);
+        o->write_characters(conv(number_buffer.data()), n_chars);
     }
 
     /*!
@@ -12788,7 +12743,7 @@ class serializer
         // NaN / inf
         if (not std::isfinite(x))
         {
-            o->write_characters("null", 4);
+            o->write_characters(conv("null"), 4);
             return;
         }
 
@@ -12809,7 +12764,7 @@ class serializer
         char* begin = number_buffer.data();
         char* end = ::nlohmann::detail::to_chars(begin, begin + number_buffer.size(), x);
 
-        o->write_characters(begin, static_cast<size_t>(end - begin));
+        o->write_characters(conv(begin), static_cast<size_t>(end - begin));
     }
 
     void dump_float(number_float_t x, std::false_type /*is_ieee_single_or_double*/)
@@ -12845,7 +12800,7 @@ class serializer
             }
         }
 
-        o->write_characters(number_buffer.data(), static_cast<std::size_t>(len));
+        o->write_characters(conv(number_buffer.data()), static_cast<std::size_t>(len));
 
         // determine if need to append ".0"
         const bool value_is_int_like =
@@ -12857,7 +12812,7 @@ class serializer
 
         if (value_is_int_like)
         {
-            o->write_characters(".0", 2);
+            o->write_characters(conv(".0"), 2);
         }
     }
 
@@ -12916,7 +12871,7 @@ class serializer
 
   private:
     /// the output of the serializer
-    output_adapter_t<char> o = nullptr;
+    output_adapter_t o = nullptr;
 
     /// a (hopefully) large enough character buffer
     std::array<char, 64> number_buffer{{}};
@@ -13046,7 +13001,7 @@ class basic_json
     friend ::nlohmann::detail::serializer<basic_json>;
     template<typename BasicJsonType>
     friend class ::nlohmann::detail::iter_impl;
-    template<typename BasicJsonType, typename CharType>
+    template<typename BasicJsonType>
     friend class ::nlohmann::detail::binary_writer;
     template<typename BasicJsonType, typename SAX>
     friend class ::nlohmann::detail::binary_reader;
@@ -13071,11 +13026,10 @@ class basic_json
     using iteration_proxy = ::nlohmann::detail::iteration_proxy<Iterator>;
     template<typename Base> using json_reverse_iterator = ::nlohmann::detail::json_reverse_iterator<Base>;
 
-    template<typename CharType>
-    using output_adapter_t = ::nlohmann::detail::output_adapter_t<CharType>;
+    using output_adapter_t = ::nlohmann::detail::output_adapter_t;
 
     using binary_reader = ::nlohmann::detail::binary_reader<basic_json>;
-    template<typename CharType> using binary_writer = ::nlohmann::detail::binary_writer<basic_json, CharType>;
+    using binary_writer = ::nlohmann::detail::binary_writer<basic_json>;
 
     using serializer = ::nlohmann::detail::serializer<basic_json>;
 
@@ -14847,7 +14801,7 @@ class basic_json
                   const error_handler_t error_handler = error_handler_t::strict) const
     {
         string_t result;
-        serializer s(detail::output_adapter<char, string_t>(result), indent_char, error_handler);
+        serializer s(detail::output_adapter::make_output_adapter(result), indent_char, error_handler);
 
         if (indent >= 0)
         {
@@ -18873,7 +18827,7 @@ class basic_json
         o.width(0);
 
         // do the actual serialization
-        serializer s(detail::output_adapter<char>(o), o.fill());
+        serializer s(detail::output_adapter(o), o.fill());
         s.dump(j, pretty_print, false, static_cast<unsigned int>(indentation));
         return o;
     }
@@ -19102,7 +19056,7 @@ class basic_json
                             const bool allow_exceptions = true)
     {
         basic_json result;
-        parser(detail::make_input_adapter(first, last), cb, allow_exceptions).parse(true, result);
+        parser(detail::input_adapter::make_input_adapter(first, last), cb, allow_exceptions).parse(true, result);
         return result;
     }
 
@@ -19112,7 +19066,7 @@ class basic_json
                      typename std::iterator_traits<IteratorType>::iterator_category>::value, int>::type = 0>
     static bool accept(IteratorType first, IteratorType last)
     {
-        return parser(detail::make_input_adapter(first, last)).accept(true);
+        return parser(detail::input_adapter::make_input_adapter(first, last)).accept(true);
     }
 
     template<class IteratorType, class SAX, typename std::enable_if<
@@ -19121,7 +19075,7 @@ class basic_json
                      typename std::iterator_traits<IteratorType>::iterator_category>::value, int>::type = 0>
     static bool sax_parse(IteratorType first, IteratorType last, SAX* sax)
     {
-        return parser(detail::make_input_adapter(first, last)).sax_parse(sax);
+        return parser(detail::input_adapter::make_input_adapter(first, last)).sax_parse(sax);
     }
 
     /*!
@@ -19165,7 +19119,7 @@ class basic_json
     */
     friend std::istream& operator>>(std::istream& i, basic_json& j)
     {
-        parser(detail::make_input_adapter(i)).parse(false, j);
+        parser(detail::input_adapter::make_input_adapter(i)).parse(false, j);
         return i;
     }
 
@@ -19343,14 +19297,9 @@ class basic_json
         return result;
     }
 
-    static void to_cbor(const basic_json& j, detail::output_adapter<std::uint8_t> o)
+    static void to_cbor(const basic_json& j, detail::output_adapter o)
     {
-        binary_writer<std::uint8_t>(o).write_cbor(j);
-    }
-
-    static void to_cbor(const basic_json& j, detail::output_adapter<char> o)
-    {
-        binary_writer<char>(o).write_cbor(j);
+        binary_writer(o).write_cbor(j);
     }
 
     /*!
@@ -19439,14 +19388,9 @@ class basic_json
         return result;
     }
 
-    static void to_msgpack(const basic_json& j, detail::output_adapter<std::uint8_t> o)
+    static void to_msgpack(const basic_json& j, detail::output_adapter o)
     {
-        binary_writer<std::uint8_t>(o).write_msgpack(j);
-    }
-
-    static void to_msgpack(const basic_json& j, detail::output_adapter<char> o)
-    {
-        binary_writer<char>(o).write_msgpack(j);
+        binary_writer(o).write_msgpack(j);
     }
 
     /*!
@@ -19538,16 +19482,10 @@ class basic_json
         return result;
     }
 
-    static void to_ubjson(const basic_json& j, detail::output_adapter<std::uint8_t> o,
+    static void to_ubjson(const basic_json& j, detail::output_adapter o,
                           const bool use_size = false, const bool use_type = false)
     {
-        binary_writer<std::uint8_t>(o).write_ubjson(j, use_size, use_type);
-    }
-
-    static void to_ubjson(const basic_json& j, detail::output_adapter<char> o,
-                          const bool use_size = false, const bool use_type = false)
-    {
-        binary_writer<char>(o).write_ubjson(j, use_size, use_type);
+        binary_writer(o).write_ubjson(j, use_size, use_type);
     }
 
 
@@ -19621,17 +19559,9 @@ class basic_json
     @pre The input `j` shall be an object: `j.is_object() == true`
     @sa @ref to_bson(const basic_json&)
     */
-    static void to_bson(const basic_json& j, detail::output_adapter<std::uint8_t> o)
+    static void to_bson(const basic_json& j, detail::output_adapter o)
     {
-        binary_writer<std::uint8_t>(o).write_bson(j);
-    }
-
-    /*!
-    @copydoc to_bson(const basic_json&, detail::output_adapter<std::uint8_t>)
-    */
-    static void to_bson(const basic_json& j, detail::output_adapter<char> o)
-    {
-        binary_writer<char>(o).write_bson(j);
+        binary_writer(o).write_bson(j);
     }
 
 
@@ -19757,7 +19687,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::cbor, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::cbor, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 
@@ -19866,7 +19796,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::msgpack, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::msgpack, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 
@@ -19954,7 +19884,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::ubjson, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::ubjson, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 
@@ -20041,7 +19971,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::bson, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::bson, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 

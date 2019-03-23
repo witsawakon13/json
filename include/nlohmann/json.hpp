@@ -171,7 +171,7 @@ class basic_json
     friend ::nlohmann::detail::serializer<basic_json>;
     template<typename BasicJsonType>
     friend class ::nlohmann::detail::iter_impl;
-    template<typename BasicJsonType, typename CharType>
+    template<typename BasicJsonType>
     friend class ::nlohmann::detail::binary_writer;
     template<typename BasicJsonType, typename SAX>
     friend class ::nlohmann::detail::binary_reader;
@@ -196,11 +196,10 @@ class basic_json
     using iteration_proxy = ::nlohmann::detail::iteration_proxy<Iterator>;
     template<typename Base> using json_reverse_iterator = ::nlohmann::detail::json_reverse_iterator<Base>;
 
-    template<typename CharType>
-    using output_adapter_t = ::nlohmann::detail::output_adapter_t<CharType>;
+    using output_adapter_t = ::nlohmann::detail::output_adapter_t;
 
     using binary_reader = ::nlohmann::detail::binary_reader<basic_json>;
-    template<typename CharType> using binary_writer = ::nlohmann::detail::binary_writer<basic_json, CharType>;
+    using binary_writer = ::nlohmann::detail::binary_writer<basic_json>;
 
     using serializer = ::nlohmann::detail::serializer<basic_json>;
 
@@ -1972,7 +1971,7 @@ class basic_json
                   const error_handler_t error_handler = error_handler_t::strict) const
     {
         string_t result;
-        serializer s(detail::output_adapter<char, string_t>(result), indent_char, error_handler);
+        serializer s(detail::output_adapter::make_output_adapter(result), indent_char, error_handler);
 
         if (indent >= 0)
         {
@@ -5998,7 +5997,7 @@ class basic_json
         o.width(0);
 
         // do the actual serialization
-        serializer s(detail::output_adapter<char>(o), o.fill());
+        serializer s(detail::output_adapter(o), o.fill());
         s.dump(j, pretty_print, false, static_cast<unsigned int>(indentation));
         return o;
     }
@@ -6227,7 +6226,7 @@ class basic_json
                             const bool allow_exceptions = true)
     {
         basic_json result;
-        parser(detail::make_input_adapter(first, last), cb, allow_exceptions).parse(true, result);
+        parser(detail::input_adapter::make_input_adapter(first, last), cb, allow_exceptions).parse(true, result);
         return result;
     }
 
@@ -6237,7 +6236,7 @@ class basic_json
                      typename std::iterator_traits<IteratorType>::iterator_category>::value, int>::type = 0>
     static bool accept(IteratorType first, IteratorType last)
     {
-        return parser(detail::make_input_adapter(first, last)).accept(true);
+        return parser(detail::input_adapter::make_input_adapter(first, last)).accept(true);
     }
 
     template<class IteratorType, class SAX, typename std::enable_if<
@@ -6246,7 +6245,7 @@ class basic_json
                      typename std::iterator_traits<IteratorType>::iterator_category>::value, int>::type = 0>
     static bool sax_parse(IteratorType first, IteratorType last, SAX* sax)
     {
-        return parser(detail::make_input_adapter(first, last)).sax_parse(sax);
+        return parser(detail::input_adapter::make_input_adapter(first, last)).sax_parse(sax);
     }
 
     /*!
@@ -6290,7 +6289,7 @@ class basic_json
     */
     friend std::istream& operator>>(std::istream& i, basic_json& j)
     {
-        parser(detail::make_input_adapter(i)).parse(false, j);
+        parser(detail::input_adapter::make_input_adapter(i)).parse(false, j);
         return i;
     }
 
@@ -6468,14 +6467,9 @@ class basic_json
         return result;
     }
 
-    static void to_cbor(const basic_json& j, detail::output_adapter<std::uint8_t> o)
+    static void to_cbor(const basic_json& j, detail::output_adapter o)
     {
-        binary_writer<std::uint8_t>(o).write_cbor(j);
-    }
-
-    static void to_cbor(const basic_json& j, detail::output_adapter<char> o)
-    {
-        binary_writer<char>(o).write_cbor(j);
+        binary_writer(o).write_cbor(j);
     }
 
     /*!
@@ -6564,14 +6558,9 @@ class basic_json
         return result;
     }
 
-    static void to_msgpack(const basic_json& j, detail::output_adapter<std::uint8_t> o)
+    static void to_msgpack(const basic_json& j, detail::output_adapter o)
     {
-        binary_writer<std::uint8_t>(o).write_msgpack(j);
-    }
-
-    static void to_msgpack(const basic_json& j, detail::output_adapter<char> o)
-    {
-        binary_writer<char>(o).write_msgpack(j);
+        binary_writer(o).write_msgpack(j);
     }
 
     /*!
@@ -6663,16 +6652,10 @@ class basic_json
         return result;
     }
 
-    static void to_ubjson(const basic_json& j, detail::output_adapter<std::uint8_t> o,
+    static void to_ubjson(const basic_json& j, detail::output_adapter o,
                           const bool use_size = false, const bool use_type = false)
     {
-        binary_writer<std::uint8_t>(o).write_ubjson(j, use_size, use_type);
-    }
-
-    static void to_ubjson(const basic_json& j, detail::output_adapter<char> o,
-                          const bool use_size = false, const bool use_type = false)
-    {
-        binary_writer<char>(o).write_ubjson(j, use_size, use_type);
+        binary_writer(o).write_ubjson(j, use_size, use_type);
     }
 
 
@@ -6746,17 +6729,9 @@ class basic_json
     @pre The input `j` shall be an object: `j.is_object() == true`
     @sa @ref to_bson(const basic_json&)
     */
-    static void to_bson(const basic_json& j, detail::output_adapter<std::uint8_t> o)
+    static void to_bson(const basic_json& j, detail::output_adapter o)
     {
-        binary_writer<std::uint8_t>(o).write_bson(j);
-    }
-
-    /*!
-    @copydoc to_bson(const basic_json&, detail::output_adapter<std::uint8_t>)
-    */
-    static void to_bson(const basic_json& j, detail::output_adapter<char> o)
-    {
-        binary_writer<char>(o).write_bson(j);
+        binary_writer(o).write_bson(j);
     }
 
 
@@ -6882,7 +6857,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::cbor, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::cbor, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 
@@ -6991,7 +6966,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::msgpack, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::msgpack, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 
@@ -7079,7 +7054,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::ubjson, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::ubjson, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 
@@ -7166,7 +7141,7 @@ class basic_json
     {
         basic_json result;
         detail::json_sax_dom_parser<basic_json> sdp(result, allow_exceptions);
-        const bool res = binary_reader(detail::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::bson, &sdp, strict);
+        const bool res = binary_reader(detail::input_adapter::make_input_adapter(std::forward<A1>(a1), std::forward<A2>(a2))).sax_parse(input_format_t::bson, &sdp, strict);
         return res ? result : basic_json(value_t::discarded);
     }
 

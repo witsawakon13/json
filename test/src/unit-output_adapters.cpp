@@ -33,7 +33,7 @@ SOFTWARE.
 #include <nlohmann/json.hpp>
 using nlohmann::json;
 
-class my_output_adapter : public nlohmann::detail::output_adapter_protocol<std::uint8_t>
+class my_output_adapter : public nlohmann::detail::output_adapter_protocol
 {
   public:
     void write_character(std::uint8_t c) final
@@ -41,7 +41,7 @@ class my_output_adapter : public nlohmann::detail::output_adapter_protocol<std::
         result += std::to_string(c) + " ";
     }
 
-    void write_characters(const std::uint8_t* s, std::size_t length)
+    void write_characters(const std::uint8_t* s, std::size_t length) final
     {
         for (std::size_t i = 0; i < length; ++i)
         {
@@ -61,28 +61,28 @@ TEST_CASE("user-defined output adapters")
         SECTION("CBOR")
         {
             auto o = std::make_shared<my_output_adapter>();
-            json::to_cbor(j, nlohmann::detail::output_adapter<std::uint8_t>(o));
+            json::to_cbor(j, nlohmann::detail::output_adapter(o));
             CHECK(o->result == "161 99 102 111 111 131 1 2 3 ");
         }
 
         SECTION("MessagePack")
         {
             auto o = std::make_shared<my_output_adapter>();
-            json::to_msgpack(j, nlohmann::detail::output_adapter<std::uint8_t>(o));
+            json::to_msgpack(j, nlohmann::detail::output_adapter(o));
             CHECK(o->result == "129 163 102 111 111 147 1 2 3 ");
         }
 
         SECTION("UBJSON")
         {
             auto o = std::make_shared<my_output_adapter>();
-            json::to_ubjson(j, nlohmann::detail::output_adapter<std::uint8_t>(o));
+            json::to_ubjson(j, nlohmann::detail::output_adapter(o));
             CHECK(o->result == "123 105 3 102 111 111 91 105 1 105 2 105 3 93 125 ");
         }
 
         SECTION("BSON")
         {
             auto o = std::make_shared<my_output_adapter>();
-            json::to_bson(j, nlohmann::detail::output_adapter<std::uint8_t>(o));
+            json::to_bson(j, nlohmann::detail::output_adapter(o));
             CHECK(o->result == "36 0 0 0 4 102 111 111 0 26 0 0 0 16 48 0 1 0 0 0 16 49 0 2 0 0 0 16 50 0 3 0 0 0 0 0 ");
         }
     }
