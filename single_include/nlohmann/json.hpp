@@ -17407,6 +17407,42 @@ class basic_json
         }
     }
 
+    void shrink_to_fit()
+    {
+        switch (m_type)
+        {
+            case value_t::array:
+            {
+                for (auto& val : *m_value.array)
+                {
+                    val.shrink_to_fit();
+                }
+                m_value.array->shrink_to_fit();
+                break;
+            }
+
+            case value_t::object:
+            {
+                for (auto& val : *m_value.object)
+                {
+                    val.second.shrink_to_fit();
+                }
+                break;
+            }
+
+            case value_t::string:
+            {
+                m_value.string->shrink_to_fit();
+                break;
+            }
+
+            default:
+            {
+                break;
+            }
+        }
+    }
+
     /// @}
 
 
